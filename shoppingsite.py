@@ -11,6 +11,7 @@ from flask import Flask, render_template, redirect, flash, session, request
 import jinja2
 
 import melons
+import customers
 
 
 app = Flask(__name__)
@@ -39,6 +40,7 @@ def list_melons():
     """Return page showing all the melons ubermelon has to offer"""
 
     melon_list = melons.get_all()
+    print "session is", session
     return render_template("all_melons.html",
                            melon_list=melon_list)
 
@@ -78,17 +80,25 @@ def show_shopping_cart():
     # Make sure your function can also handle the case wherein no cart has
     # been added to the session
 
-    cart_list = []
+    if session.get("cart"):
+
+        cart_list = []
+        cart_total = 0.0
 
 
-    for melon_id, amount in session["cart"].items():
-        price = melons.get_by_id(melon_id).price
-        total_price = amount * price
-        melons.amt = amount
-        melons.total_price = total_price
-        cart_list.append(melons)
+        for melon_id, amount in session["cart"].items():
+            melon_ob = melons.get_by_id(melon_id)
+            total_price = float(amount * melon_ob.price)
+            melon_ob.__setattr__("amt", amount)
+            melon_ob.__setattr__("total_price", total_price)
+            cart_list.append(melon_ob)
+            cart_total += total_price
 
-    return render_template("cart.html", cart_list=cart_list)
+        return render_template("cart.html", cart_list=cart_list,
+                               cart_total=cart_total)
+    else:
+        cart_list = []
+        return render_template("cart.html", cart_list=cart_list)
 
 
 @app.route("/add_to_cart/<melon_id>")
@@ -110,14 +120,14 @@ def add_to_cart(melon_id):
     # - flash a success message
     # - redirect the user to the cart page
 
-    if "cart" not in session:
+    if not session["cart"]:
         session["cart"] = {}
+
+    if melon_id not in session["cart"]:
+        session["cart"][melon_id] = 1
     else:
-        if melon_id not in session["cart"]:
-            session["cart"][melon_id] = 1
-        else:
-            session["cart"][melon_id] += 1
-        flash("Melon successfuly added to cart.")
+        session["cart"][melon_id] += 1
+    flash("Melon successfuly added to cart.")
 
     return redirect("/cart")
 
@@ -151,8 +161,32 @@ def process_login():
     # - if they don't, flash a failure message and redirect back to "/login"
     # - do the same if a Customer with that email doesn't exist
 
-    return "Oops! This needs to be implemented"
+    email = request.form.get("email")
+    password = request.form.get("password")
 
+    customer = customers.get_by_email(email)
+
+    if customer != None:
+        if password == customer.password:
+            session['logged_in_customer_email'] = email
+            flash("Login successful!")
+            return redirect("/melons")
+        else:
+            flash("Incorrect password.")
+            return redirect("/login")
+    else:
+        flash("No customer with that email found.")
+        return redirect("/login")
+
+@app.route("/logout")
+def process_logout():
+    """Process logout."""
+
+    session["logged_in_customer_email"] = ""
+    session["cart"] = ""
+    flash("Logged out.")
+
+    return redirect("/melons")
 
 @app.route("/checkout")
 def checkout():
@@ -166,4 +200,4 @@ def checkout():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0")

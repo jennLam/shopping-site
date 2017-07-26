@@ -120,8 +120,10 @@ def add_to_cart(melon_id):
     # - flash a success message
     # - redirect the user to the cart page
 
-    if not session["cart"]:
+    if not session.get("cart"):
+        print 'hello blah'
         session["cart"] = {}
+        print 'hello'
 
     if melon_id not in session["cart"]:
         session["cart"][melon_id] = 1
